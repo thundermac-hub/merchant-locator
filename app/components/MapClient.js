@@ -5,21 +5,6 @@ import Script from 'next/script';
 
 const MALAYSIA_CENTER = [101.9758, 4.2105];
 
-function statusFromValidUntil(validUntil) {
-  if (!validUntil) return 'active';
-
-  const now = Date.now();
-  const expiry = new Date(validUntil).getTime();
-  if (!Number.isFinite(expiry)) return 'active';
-
-  const dayMs = 24 * 60 * 60 * 1000;
-  const diff = expiry - now;
-
-  if (diff < 0) return 'expired';
-  if (diff <= 30 * dayMs) return 'expiring';
-  return 'active';
-}
-
 function getMapbox() {
   if (typeof window === 'undefined') return null;
   return window.mapboxgl || null;
@@ -40,7 +25,6 @@ function buildGeoJson(outlets, selectedId) {
         franchiseName: outlet.franchiseName,
         address: outlet.address,
         googleMapsUrl: outlet.googleMapsUrl,
-        status: statusFromValidUntil(outlet.validUntil),
         isSelected: outlet.id === selectedId ? '1' : '0',
       },
     })),
@@ -107,17 +91,7 @@ export default function MapClient({ outlets, mapboxToken }) {
         source: 'outlets',
         paint: {
           'circle-radius': ['case', ['==', ['get', 'isSelected'], '1'], 8, 6],
-          'circle-color': [
-            'match',
-            ['get', 'status'],
-            'active',
-            '#16a34a',
-            'expiring',
-            '#ea580c',
-            'expired',
-            '#dc2626',
-            '#2563eb',
-          ],
+          'circle-color': '#16a34a',
           'circle-stroke-width': 2,
           'circle-stroke-color': '#ffffff',
         },
@@ -185,6 +159,18 @@ export default function MapClient({ outlets, mapboxToken }) {
     map.fitBounds(bounds, { padding: 60, maxZoom: 13, duration: 700 });
   }, [geoJson, selectedOutletId]);
 
+  useEffect(() => {
+    if (!selectedOutlet) return;
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+
+    map.flyTo({
+      center: [selectedOutlet.longitude, selectedOutlet.latitude],
+      zoom: 13,
+      duration: 600,
+    });
+  }, [selectedOutlet]);
+
   const canInteract = Boolean(mapboxToken);
 
   return (
@@ -219,28 +205,79 @@ export default function MapClient({ outlets, mapboxToken }) {
         </div>
       </div>
 
-      <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: '1px solid #e5e7eb' }}>
-        <div ref={mapContainerRef} style={{ width: '100%', height: 460, background: '#e5e7eb' }} />
+      <div className="map-layout" style={{ gap: 12 }}>
+        <div
+          style={{
+            border: '1px solid #e5e7eb',
+            borderRadius: 12,
+            background: '#fff',
+            maxHeight: 460,
+            overflowY: 'auto',
+          }}
+        >
+          {outlets.map((outlet) => {
+            const isSelected = outlet.id === selectedOutletId;
+            return (
+              <button
+                key={outlet.id}
+                type="button"
+                onClick={() => setSelectedOutletId(outlet.id)}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  background: isSelected ? '#ecfdf5' : '#fff',
+                  border: 'none',
+                  borderBottom: '1px solid #f1f5f9',
+                  padding: '12px 12px 10px',
+                  cursor: 'pointer',
+                }}
+              >
+                <div style={{ fontWeight: 600, color: '#111827', fontSize: 14 }}>{outlet.outletName}</div>
+                <div style={{ color: '#374151', fontSize: 12, marginTop: 3 }}>{outlet.franchiseName}</div>
+                {outlet.address && (
+                  <div style={{ color: '#6b7280', fontSize: 12, marginTop: 4, lineHeight: 1.3 }}>{outlet.address}</div>
+                )}
+              </button>
+            );
+          })}
+        </div>
 
-        {!mapboxToken && (
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: 'rgba(255,255,255,0.9)',
-              color: '#7f1d1d',
-              fontWeight: 600,
-              padding: 16,
-              textAlign: 'center',
-            }}
-          >
-            Mapbox token is missing. Set <code style={{ marginLeft: 6 }}>NEXT_PUBLIC_MAPBOX_TOKEN</code> in `.env`.
-          </div>
-        )}
+        <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: '1px solid #e5e7eb' }}>
+          <div ref={mapContainerRef} style={{ width: '100%', height: 460, background: '#e5e7eb' }} />
+
+          {!mapboxToken && (
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'rgba(255,255,255,0.9)',
+                color: '#7f1d1d',
+                fontWeight: 600,
+                padding: 16,
+                textAlign: 'center',
+              }}
+            >
+              Mapbox token is missing. Set <code style={{ marginLeft: 6 }}>NEXT_PUBLIC_MAPBOX_TOKEN</code> in `.env`.
+            </div>
+          )}
+        </div>
       </div>
+
+      <style jsx>{`
+        .map-layout {
+          display: grid;
+          grid-template-columns: minmax(260px, 340px) 1fr;
+        }
+
+        @media (max-width: 960px) {
+          .map-layout {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
 
       {selectedOutlet && (
         <div style={{ marginTop: 12, padding: 12, borderRadius: 8, background: '#f9fafb', border: '1px solid #e5e7eb' }}>
