@@ -36,6 +36,20 @@ Open:
 - UI: http://localhost:3000
 - API: http://localhost:3000/api/franchises
 
+## Run with Docker
+
+Build image:
+
+```bash
+docker build -t merchant-locator .
+```
+
+Run container:
+
+```bash
+docker run --env-file .env -p 3000:3000 merchant-locator
+```
+
 ## Map style
 
 The map uses Mapbox GL JS with:
