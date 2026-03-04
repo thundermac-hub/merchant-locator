@@ -1,6 +1,9 @@
 export const metadata = {
-  title: 'Merchant Locator',
+  title: 'Merchant Locator · Slurp!',
   description: 'Next.js + MySQL sample app',
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
 export default function RootLayout({ children }) {

@@ -34,15 +34,60 @@ function buildGeoJson(outlets, selectedId) {
 export default function MapClient({ outlets, mapboxToken }) {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
+  const geoJsonRef = useRef({ type: 'FeatureCollection', features: [] });
+  const filteredOutletsRef = useRef([]);
   const [scriptReady, setScriptReady] = useState(false);
   const [selectedOutletId, setSelectedOutletId] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedState, setSelectedState] = useState('ALL');
+
+  const availableStates = useMemo(() => {
+    const unique = new Set();
+    outlets.forEach((outlet) => {
+      if (outlet.state) unique.add(outlet.state);
+    });
+    return ['ALL', ...Array.from(unique).sort((a, b) => a.localeCompare(b))];
+  }, [outlets]);
+
+  const filteredOutlets = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return outlets.filter((outlet) => {
+      const matchesState = selectedState === 'ALL' || outlet.state === selectedState;
+      if (!matchesState) return false;
+      if (!query) return true;
+
+      const outletName = outlet.outletName.toLowerCase();
+      const franchiseName = outlet.franchiseName.toLowerCase();
+      const address = (outlet.address || '').toLowerCase();
+      return outletName.includes(query) || franchiseName.includes(query) || address.includes(query);
+    });
+  }, [outlets, searchQuery, selectedState]);
 
   const selectedOutlet = useMemo(
-    () => outlets.find((outlet) => outlet.id === selectedOutletId) || null,
-    [outlets, selectedOutletId],
+    () => filteredOutlets.find((outlet) => outlet.id === selectedOutletId) || null,
+    [filteredOutlets, selectedOutletId],
   );
 
-  const geoJson = useMemo(() => buildGeoJson(outlets, selectedOutletId), [outlets, selectedOutletId]);
+  const geoJson = useMemo(() => buildGeoJson(filteredOutlets, selectedOutletId), [filteredOutlets, selectedOutletId]);
+  geoJsonRef.current = geoJson;
+  filteredOutletsRef.current = filteredOutlets;
+
+  const focusOutletOnMap = (outlet) => {
+    const map = mapRef.current;
+    if (!map || !outlet) return;
+
+    map.flyTo({
+      center: [outlet.longitude, outlet.latitude],
+      zoom: 15,
+      duration: 600,
+    });
+  };
+
+  useEffect(() => {
+    if (!selectedOutletId) return;
+    const existsInFiltered = filteredOutlets.some((outlet) => outlet.id === selectedOutletId);
+    if (!existsInFiltered) setSelectedOutletId('');
+  }, [filteredOutlets, selectedOutletId]);
 
   useEffect(() => {
     if (getMapbox()) setScriptReady(true);
@@ -71,7 +116,7 @@ export default function MapClient({ outlets, mapboxToken }) {
     map.on('load', () => {
       map.addSource('outlets', {
         type: 'geojson',
-        data: geoJson,
+        data: geoJsonRef.current,
       });
 
       map.addLayer({
@@ -115,7 +160,24 @@ export default function MapClient({ outlets, mapboxToken }) {
         map.on('click', layerId, (event) => {
           const feature = event.features?.[0];
           const id = feature?.properties?.id;
-          if (id) setSelectedOutletId(String(id));
+          if (id) {
+            const outletId = String(id);
+            setSelectedOutletId(outletId);
+
+            const outlet = filteredOutletsRef.current.find((item) => item.id === outletId);
+            if (outlet) {
+              focusOutletOnMap(outlet);
+            } else {
+              const coordinates = feature?.geometry?.coordinates;
+              if (Array.isArray(coordinates) && coordinates.length >= 2) {
+                map.flyTo({
+                  center: [Number(coordinates[0]), Number(coordinates[1])],
+                  zoom: 15,
+                  duration: 600,
+                });
+              }
+            }
+          }
         });
 
         map.on('mouseenter', layerId, () => {
@@ -132,7 +194,7 @@ export default function MapClient({ outlets, mapboxToken }) {
       map.remove();
       mapRef.current = null;
     };
-  }, [scriptReady, mapboxToken, geoJson]);
+  }, [scriptReady, mapboxToken]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -162,13 +224,22 @@ export default function MapClient({ outlets, mapboxToken }) {
   useEffect(() => {
     if (!selectedOutlet) return;
     const map = mapRef.current;
-    if (!map || !map.isStyleLoaded()) return;
+    if (!map) return;
 
-    map.flyTo({
-      center: [selectedOutlet.longitude, selectedOutlet.latitude],
-      zoom: 13,
-      duration: 600,
-    });
+    const flyToOutlet = () => {
+      map.flyTo({
+        center: [selectedOutlet.longitude, selectedOutlet.latitude],
+        zoom: 15,
+        duration: 600,
+      });
+    };
+
+    if (map.isStyleLoaded()) {
+      flyToOutlet();
+      return;
+    }
+
+    map.once('load', flyToOutlet);
   }, [selectedOutlet]);
 
   const canInteract = Boolean(mapboxToken);
@@ -183,7 +254,7 @@ export default function MapClient({ outlets, mapboxToken }) {
 
       <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ color: '#374151', fontSize: 14 }}>
-          Mapped outlets: <strong>{outlets.length}</strong>
+          Mapped outlets: <strong>{filteredOutlets.length}</strong>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button
@@ -215,13 +286,54 @@ export default function MapClient({ outlets, mapboxToken }) {
             overflowY: 'auto',
           }}
         >
-          {outlets.map((outlet) => {
+          <div style={{ padding: 10, borderBottom: '1px solid #f1f5f9', position: 'sticky', top: 0, background: '#fff', zIndex: 1 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
+              <input
+                type="text"
+                placeholder="Search merchant by name or location..."
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  border: '1px solid #d1d5db',
+                  borderRadius: 8,
+                  padding: '8px 10px',
+                  fontSize: 13,
+                }}
+              />
+              <select
+                value={selectedState}
+                onChange={(event) => setSelectedState(event.target.value)}
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  border: '1px solid #d1d5db',
+                  borderRadius: 8,
+                  padding: '8px 10px',
+                  fontSize: 13,
+                  background: '#fff',
+                }}
+              >
+                {availableStates.map((stateValue) => (
+                  <option key={stateValue} value={stateValue}>
+                    {stateValue === 'ALL' ? 'All States' : stateValue}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {filteredOutlets.map((outlet) => {
             const isSelected = outlet.id === selectedOutletId;
             return (
               <button
                 key={outlet.id}
                 type="button"
-                onClick={() => setSelectedOutletId(outlet.id)}
+                onClick={() => {
+                  setSelectedOutletId(outlet.id);
+                  focusOutletOnMap(outlet);
+                }}
                 style={{
                   width: '100%',
                   textAlign: 'left',
@@ -234,12 +346,17 @@ export default function MapClient({ outlets, mapboxToken }) {
               >
                 <div style={{ fontWeight: 600, color: '#111827', fontSize: 14 }}>{outlet.outletName}</div>
                 <div style={{ color: '#374151', fontSize: 12, marginTop: 3 }}>{outlet.franchiseName}</div>
+                {outlet.state && <div style={{ color: '#047857', fontSize: 12, marginTop: 3 }}>{outlet.state}</div>}
                 {outlet.address && (
                   <div style={{ color: '#6b7280', fontSize: 12, marginTop: 4, lineHeight: 1.3 }}>{outlet.address}</div>
                 )}
               </button>
             );
           })}
+
+          {filteredOutlets.length === 0 && (
+            <div style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>No outlets found for this search.</div>
+          )}
         </div>
 
         <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: '1px solid #e5e7eb' }}>
