@@ -288,20 +288,37 @@ export default function MapClient({ outlets, mapboxToken }) {
         >
           <div style={{ padding: 10, borderBottom: '1px solid #f1f5f9', position: 'sticky', top: 0, background: '#fff', zIndex: 1 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
-              <input
-                type="text"
-                placeholder="Search merchant by name or location..."
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                style={{
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  border: '1px solid #d1d5db',
-                  borderRadius: 8,
-                  padding: '8px 10px',
-                  fontSize: 13,
-                }}
-              />
+              <div style={{ position: 'relative' }}>
+                <span
+                  style={{
+                    position: 'absolute',
+                    right: 10,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: '#6b7280',
+                    fontSize: 13,
+                    pointerEvents: 'none',
+                  }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0" />
+                  </svg>
+                </span>
+                <input
+                  type="text"
+                  placeholder="Search merchant by name or location..."
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    border: '1px solid #d1d5db',
+                    borderRadius: 8,
+                    padding: '8px 34px 8px 10px',
+                    fontSize: 13,
+                  }}
+                />
+              </div>
               <select
                 value={selectedState}
                 onChange={(event) => setSelectedState(event.target.value)}
