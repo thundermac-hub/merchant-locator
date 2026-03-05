@@ -42,10 +42,6 @@ export default async function HomePage() {
           </div>
         ) : (
           <>
-            <div style={{ padding: '0 24px 16px', color: '#374151' }}>
-              Total outlets: <strong>{outletRecords.length}</strong>
-            </div>
-
             <MapClient outlets={outletRecords} mapboxToken={mapboxToken} />
           </>
         )}

@@ -252,10 +252,7 @@ export default function MapClient({ outlets, mapboxToken }) {
         onLoad={() => setScriptReady(true)}
       />
 
-      <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ color: '#374151', fontSize: 14 }}>
-          Mapped outlets: <strong>{filteredOutlets.length}</strong>
-        </div>
+      <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: 8 }}>
           <button
             type="button"
